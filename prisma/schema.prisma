@@ -1,13 +1,128 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-// Basic schema file
+// Basic schema file -> define bunch of your code for your db right here in prisma format completely isolating from sql format !!!
+// concept of Prisma is "single poing of truth" specificially this schema.Prisma file
 
+// 1, init your schema with this setting
 
+// generator : what your code is generating into 
+// generator : default -> prisma-client-js
+// generator : how yoy build your schema to ts code
+// generator : what are your generating code into -> in this case prisma-client-js -> take all your code and generate this to prisma format code
 generator client {
+  // you can have multiple generator keyword
+  // you must have `provider` : name of generator of you want 
   provider = "prisma-client-js"
 }
 
+// datasource : where the data is coming from -> in this case : postgres
+// datasource : define from your env variable -> whatever your database it is, your db must be exists first !!!
 datasource db {
+  // you can only have single datasource keyword, prisma directly connect to your db -> so you can only have one database defined 
+  // you must have `provider` property and `url` property each time define datasource  
+
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// 2. define your schema below
+// model :  for define the new or exist schema
+// model : represents the different table inside of your db where you stored the data
+// model : essentially compose from different field
+// field : essentially compose from 4 part : <namespace of the field>  <type of the field><(optional -> ex: '?') modifier>  <(optional) attribute1> <(optional) attribute2> 
+// type of field : BigInt, Float, Decimal, Json, Bytes
+// type of field : Unsupported("") -> if prisma doesn't support single type of native type db there will be going unsupported and use "Unsupported"
+// type of field : data that represents another object -> type of relationaship data -> if you save on auto format then it will auto populate information from data type which represent another object 
+// modifier : Post[] -> you can have multiple Post
+// modifier : Post? -> you can have optional to fill the value or not
+
+// (one to many) ref : (#)
+model User {
+  // all of the code for the model
+  // id      Int     @id @default(autoincrement()) 
+  id               String          @id @default(uuid()) // (one to many) ref : (**)
+  //                              ^^ this is field level attribute -> only one single @
+  age              Int
+  name             String? // -> ? modifier : this name field is optional 
+  email            String          @unique // -> field
+  // isAdmin        Boolean
+  role             Role            @default(BASIC)
+  // preferences   Json
+  // posts Post[] // (one to many) -> data that represents another object -> result from auto populate prisma
+  writtenPosts     Post[]          @relation("WrittenPosts") // (one to many, if you have  two references to the exact same table) 
+  favoritePosts    Post[]          @relation("FavoritePosts") // (one to many, if you have  two references to the exact same table)
+  userPreference   UserPreference? @relation(fields: [userPreferenceId], references: [id]) // (one to one)
+  userPreferenceId String?         @unique // (one to one)
+  // UserPreference UserPreference? // (one to one)
+
+  @@unique([age, name]) // this say "we must have a uniqueness constraint on age and name -> we cannot have two people that have the same age and name"
+  @@index([email]) // so we could have now email as index -> this gonna help thing for sorting such query by email
+}
+
+// @@unique([age, name])
+// ^ this is block level attribute -> have double @ represent this block level attribute
+
+// avoid ambigous reference -> (one to many, if you have  two references to the exact same table)
+// writtenPosts Post[] @relation("WrittenPosts")
+//                                ^ this say "reference to author '(1)' and authorId '(2)'"  
+
+// '(1)' author    User     @relation("WrittenPosts", fields: [authorId], references: [id]) // (one to many) -> data that represents another object
+// '(2)' authorId  String // (one to many) ref : (*)
+
+model UserPreference {
+  id           String  @id @default(uuid())
+  emailUpdates Boolean
+  user         User? // (one to one)
+
+  // user         User    @relation(fields: [userId], references: [id]) // (one to one)
+  // userId       String  @unique // (one to one)
+}
+
+model Post {
+  id            String   @id @default(uuid()) // this create to specific id
+  title         String
+  averageRating Float
+  createdAt     DateTime @default(now()) // DateTime -> the only one time based you can use in Prisma | @default(now()) -> this is going to be default to the exact current timestamp when create this -> so we don't have to worry manually setting this time 
+  updatedAt     DateTime @updatedAt // @updatedAt -> this is essentially is that every time we update this Post it is going to automatically set this updatedAt field whatever we specify is updatedAt is the current time so it is going to automatically updated for us -> we don't have to worry about manually keeping track of that updatedTime
+  // author    User     @relation(fields: [authorId], references: [id]) // (one to many) -> data that represents another object
+  // authorId  String // (one to many) ref : (*)
+
+  author       User    @relation("WrittenPosts", fields: [authorId], references: [id]) // (one to many, if you have  two references to the exact same table) -> data that represents another object
+  authorId     String
+  favoriteBy   User?   @relation("FavoritePosts", fields: [favoriteById], references: [id]) // (one to many, if you have  two references to the exact same table) -> data that represents another object
+  favoriteById String?
+
+  // use this for many to many
+  categories Category[] // -> (many to many) data that represents another object -> result from auto populate prisma -> automatically going to create join table between the two that is going to hook up all this relationship for us
+  // or use this from generated prisma
+  // Category     Category? @relation(fields: [categoryId], references: [id]) // -> (many to many) data that represents another object -> result from auto populate prisma -> automatically going to create join table between the two that is going to hook up all this relationship for us
+  // categoryId   String? // -> (many to many) data that represents another object -> result from auto populate prisma -> automatically going to create join table between the two that is going to hook up all this relationship for us
+  // @@id([title, authorId]) // this is composite id -> the difference with specific id is instead having specific id, our title and authorId represent id for our Post so we mush have a unique author and title combination that will corresponding to our id instead of having this specifc autogenerated id up there 
+}
+
+// (one to many)
+// User @relation(fields: [authorId], references: [id])
+//   ^ referencing to User table (#)
+// User @relation(fields: [authorId], references: [id])
+//            ^ referencing to authorId (*)
+// User @relation(fields: [authorId], references: [id])
+//                                          ^ referencing to id (**)
+
+// (one to many, if you have  two references to the exact same table) -> relationship argument
+// author    User     @relation("WrittenPosts", fields: [authorId], references: [id]) // (one to many) -> data that represents another object
+//                                ^ we can pass in property -> name whatever you want this is just a label and label can share another field 
+
+// (many to many relationship)
+model Category {
+  id    String @id @default(uuid())
+  name  String @unique
+  posts Post[]
+}
+
+// create a enum 
+enum Role {
+  BASIC
+  ADMIN
+}
+
+// 3. allow you to do migration based on you change this file -> database is always up to date to this file

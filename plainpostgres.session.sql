@@ -1,1 +1,2 @@
-SELECT * FROM information_schema.tables;
+select *
+from "User";
